@@ -64,9 +64,13 @@ disabled and poppler (cost 100) takes over:
 # DISABLED-gstoraster-broken-on-gs-10.06 application/vnd.cups-postscript	application/vnd.cups-raster	175	gstoraster
 ```
 
-> **Maintenance warning:** a `cups-filters` package upgrade restores this file and
-> re-breaks the queue. Re-apply the two `#` comments from
-> `cupsfilters-ghostscript.convs.orig` after upgrading.
+> **Upgrade protection (applied):** this file is registered with
+> `sudo dpkg-divert --add --rename
+> /usr/share/cups/mime/cupsfilters-ghostscript.convs`, so `cups-filters`
+> upgrades (including release upgrades) install upstream to
+> `….convs.distrib` and leave this edited copy in place.
+> Verify with `dpkg-divert --list | grep ghostscript`.
+> Revert with `sudo dpkg-divert --remove --rename <path>`.
 
 ### 3. Stale colord profile broke color management
 
