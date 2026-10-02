@@ -141,6 +141,114 @@ lp -d KONICA_MINOLTA_206 -o media=A4 -o sides=one-sided file.pdf
 lp -d KONICA_MINOLTA_206 -o media=A4 -o sides=two-sided-long-edge file.pdf
 lp -d KONICA_MINOLTA_206 -o media=A4 -o sides=two-sided-short-edge file.pdf
 ```
+## "Filter failed" — what it means, in detail
+
+A CUPS print job is not sent to the printer directly. It passes through a
+**chain of filters**, each converting the document one step closer to what the
+printer hardware understands. For this queue the chain is:
+
+```
+your PDF ──▶ pdftopdf ──▶ pdftoraster (poppler) ──▶ 245igdirf (vendor) ──▶ usb backend ──▶ printer
+```
+
+CUPS runs every stage as a separate process and watches its exit status. If
+**any** stage crashes or exits non-zero, CUPS stops the whole job, and the
+printer/GUI reports **"Filter failed"** (stored as the queue's
+`printer-state-message`). The message alone never tells you *which* filter
+broke — the logs do:
+
+```sh
+sudo grep -a -iE "filter failed|stopped with status|Unable to start filter" \
+  /var/log/cups/error_log | tail
+```
+
+Every failure below was observed on this machine, with its exact log
+signature, root cause, and fix.
+
+### Cause A — `gstoraster filter failed` (Ghostscript crashed, status 255)
+
+Log signature (jobs 241–243):
+
+```
+E [Job 242] cfFilterGhostscript: Ghostscript (PID 5738) stopped with status 255
+E [Job 242] gstoraster filter failed.
+D [Job 242] PID 5730 (/usr/lib/cups/filter/gstoraster) stopped with status 1.
+D [Job 242] PID 5731 (…/245igdirf) stopped with status 7.
+… printer-state-message="gstoraster filter failed."
+```
+
+What happened, step by step:
+
+1. The stock PPD contained `*cupsICCProfile` lines, so CUPS invoked Ghostscript
+   with `-sOutputICCProfile=…`.
+2. Ubuntu's Ghostscript 10.06 is built **without ICC support**, so it died with
+   `Unrecoverable error: undefined in .putdeviceprops` (exit 255) — and, with
+   this PPD's `setpagedevice` (HWMargins) applied, its `cups` device additionally
+   emits a **0-byte raster**.
+3. The next stage, the vendor filter `245igdirf`, received an empty raster and
+   exited (status 7/9). CUPS reports the *first* failed stage, hence the message
+   names `gstoraster` even though two stages died.
+
+Fix (both halves are required): delete the `*cupsICCProfile` lines from the PPD
+(§1), **and** disable the two `gstoraster → cups-raster` MIME mappings so
+poppler's `pdftoraster` renders instead (§2, now protected by `dpkg-divert`).
+A healthy run logs `pdftoraster … exited with no errors` followed by
+`245igdirf … exited with no errors`.
+
+### Cause B — `245igdirf stopped with status 113 (Permission denied)`
+
+Log signature (job 247) plus a kernel audit line:
+
+```
+D [Job 247] PID 6845 (…/245igdirf) stopped with status 113 (Permission denied)
+audit: apparmor="DENIED" operation="exec" … 245igdirf
+```
+
+What happened: the filter chain reached the vendor binary, but **AppArmor**
+refused to let `cupsd` execute anything under `/usr/local/lib/konica/`.
+Exit 113 is the giveaway — it means "denied at exec time", i.e. the filter never
+ran at all (contrast Cause A, where the filter ran and crashed).
+
+Fix (§4): the `Cxr -> third_party` rule in
+`/etc/apparmor.d/local/usr.sbin.cupsd` plus `apparmor_parser -r`. Confirm with
+`sudo journalctl -k | grep 'apparmor="DENIED"'` — after the fix, test prints
+produce no new denials.
+
+### Cause C — `Unable to start filter … No such file or directory`
+
+Log signature (job 270):
+
+```
+E [Job 270] Unable to start filter "/usr/local/lib/konica/kwrap-dump.sh" - No such file or directory.
+E [Job 270] Stopping job because the scheduler could not execute a filter.
+```
+
+What happened: this is the same class as Cause B (filter never ran), but the
+reason is a **missing executable** rather than a denial. Here it was
+self-inflicted — a temporary diagnostic capture wrapper was deleted while the
+running `cupsd` still had it cached from the PPD. The general lesson: whenever
+the `*cupsFilter` path in the PPD points at something that doesn't exist (or
+isn't executable by `lp`), every job fails this way until the PPD is corrected
+(`lpadmin -P …`) or the file restored, plus a `systemctl restart cups` so the
+daemon drops its cached copy.
+
+### Cause D (transient) — `pdftoraster … stopped with status 1`, `Cannot open raster stream`
+
+Seen immediately after `systemctl restart cups` (jobs 264/266): `pdftoraster`
+wrote only the 4-byte raster sync word and quit. This was cupsd serving jobs
+while still reloading PPD/filter state — re-submitting the same job once the
+restart settled printed fine. If you see it, wait a few seconds and reprint
+before changing anything.
+
+### Quick triage table
+
+| What the log says | Meaning | Fix |
+|---|---|---|
+| `gstoraster filter failed`, Ghostscript status 255 | gs crashed (ICC / 0-byte raster) | PPD without ICC lines + `pdftoraster` via convs edit (§1, §2) |
+| `245igdirf … status 113 (Permission denied)` + AppArmor `DENIED` | filter blocked at exec | AppArmor rule (§4) |
+| `Unable to start filter … No such file or directory` | `*cupsFilter` target missing | fix PPD path / restore file, restart cups |
+| `Cannot open raster stream` right after a restart | daemon mid-reload | wait, reprint |
+| `… exited with no errors` + `Sent N bytes` + `Job completed` | healthy — not a failure | — |
 
 ## Backups (all kept on the machine)
 
