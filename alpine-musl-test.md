@@ -296,14 +296,15 @@ pair proven above to fail. Strictly worse than the working Ubuntu setup.
 | | Approach | Assessment |
 |---|---|---|
 | **A** | Stay on Ubuntu/glibc | Costs nothing, works today. **Recommended.** |
-| **B** | Reimplement raster→TBCP in C | The only route to musl. Genuine RE on a closed 530 KB binary — halftoning, `ImxCmmProfile*` colour management, PJL/TBCP framing, duplex `PAGESTATUS` sequences. Weeks, not hours. Start from captured streams (the `tee` wrapper in [README.md](README.md) already does this). |
+| **B** | Reimplement raster→TBCP in C | The only route to musl. Genuine RE on a closed ~1.3 MB codebase (not just the 530 KB binary) — halftoning, `ImxCmmProfile*` colour management, PJL/TBCP framing, duplex `PAGESTATUS` sequences. Scope, ladder and prerequisites: **[alpine-musl-reimplementation.md](alpine-musl-reimplementation.md)** |
 | **C** | Port `konica206-native` | Ruled out by §7. |
 
 For **B**, the binary is `not stripped` with a friendly symbol table
 (`ImxErrDiffAMT*`, `PCM_fHLS2sRGB`, `PCM_fJab2XYZ`, `PalFileRead/Write`), which
 makes it tractable. A tool like `morluto/rea` driving Ghidra is useful for
 *understanding* it — it will not port anything, but it is the right instrument for
-reading it.
+reading it. See **[alpine-musl-reimplementation.md](alpine-musl-reimplementation.md)**
+for the full scope, the staged ladder, and what to build first.
 
 ---
 

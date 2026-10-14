@@ -3,10 +3,13 @@
 How the `KONICA_MINOLTA_206` classic CUPS queue was created on Ubuntu 26.04
 (`resolute`), and every fix needed to make it print — including duplex.
 
-> **Also here:** [konica206uri.md](konica206uri.md) (the PAPPL primary queue) and
+> **Also here:** [konica206uri.md](konica206uri.md) (the PAPPL primary queue),
 > [alpine-musl-test.md](alpine-musl-test.md) — a negative result: `245igdirf`
 > loads and links on Alpine/musl but **cannot print**, and `konica206-native` is
 > not a way around it. Read that one before attempting a musl port.
+> [alpine-musl-reimplementation.md](alpine-musl-reimplementation.md) scopes the
+> only remaining option — replacing the vendor filter in C — and says what to
+> build first.
 
 ## Environment
 
