@@ -87,15 +87,6 @@ parsing — `Missing asterisk in column 1` — so it had been deleted outright).
 Result: duplex printed at the **wrong edge** (short edge). Restoring the line
 fixed long-edge duplex; the PPD is now byte-identical to the pristine `.bak`.
 
-This holds for the `konica206uri` / pappl-retrofit chain only: `245igdirf` is
-told the back-side setting on its command line, so it pairs the rotated raster
-with the matching binding. The standalone PAPPL application
-(`konica206-native`, the `konica206` queue on the bootc image) must read
-`*cupsBackSide: Normal` instead - with `Rotated` its back pages print upside
-down, because `konica-native` derives `BINDING` from the raster header and
-options and never sees that hint. See `konica206-native-alpine` commit 30c0739
-and `fedora-bootc-konica206` commit fa1bf12.
-
 ## Duplex verification
 
 Job log proof (`journalctl -u legacy-printer-app`) for a 2-page

@@ -119,8 +119,7 @@ Other relevant facts:
 - `*cupsBackSide: Rotated` (line 50) is **required for correct duplex orientation**
   — deleting it makes the back side print at the wrong edge. PPD comment lines must
   start with `*` (use `*%`); a `#` comment makes CUPS reject the PPD with
-  `Missing asterisk in column 1`. This is specific to the `konica206uri` chain; the
-  standalone PAPPL app needs the opposite (`Normal`) — see `konica206uri.md`.
+  `Missing asterisk in column 1`.
 - `.Borderless` entries in `lpoptions -l` (e.g. `A4.Borderless`) are synthesized by
   `libppd`, not present in the PPD — ignore them.
 
